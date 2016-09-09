@@ -10,6 +10,11 @@ project(NativeJIT_CMake)
 ###############################################################################
 
 option(NATIVEJIT_WITH_TEST "Build NativeJIT tests" ON)
+option(NATIVEJIT_WITH_AFL "Build for American Fuzzy Lop" OFF)
+
+if(NATIVEJIT_WITH_AFL)
+  add_definitions("-DNATIVEJIT_WITH_AFL")
+endif()
 
 # gtest
 if(NATIVEJIT_WITH_TEST)

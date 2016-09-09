@@ -563,6 +563,7 @@ bool Test()
 
 int main()
 {
+#ifndef NATIVEJIT_WITH_AFL
     std::cout << "Running test cases ..." << std::endl;
     bool success = Test();
     if (success)
@@ -577,13 +578,14 @@ int main()
     std::cout << std::endl;
     std::cout << "Type an expression and press return to evaluate." << std::endl;
     std::cout << "Enter an empty line to exit." << std::endl;
+#endif
 
     ExecutionBuffer codeAllocator(8192);
     Allocator allocator(8192);
     FunctionBuffer code(codeAllocator, 8192);
     std::string prompt(">> ");
 
-    for (;;)
+   for (;;)
     {
         allocator.Reset();
         codeAllocator.Reset();
@@ -605,13 +607,18 @@ int main()
             Examples::PerfStat perfStat;
             float result = parser.Evaluate( perfStat );
             std::cout << result << std::endl;
+#ifndef NATIVEJIT_WITH_AFL
             perfStat.print();
+#endif
         }
         catch (Examples::Parser::ParseError& e)
         {
             std::cout << std::string(prompt.length(), ' ');
             std::cout << e;
         }
+#ifndef NATIVEJIT_WITH_AFL
+        break;
+#endif
     }
 
     return 0;
