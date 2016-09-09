@@ -9,13 +9,16 @@ project(NativeJIT_CMake)
 
 ###############################################################################
 
+option(NATIVEJIT_WITH_TEST "Build NativeJIT tests" ON)
+
 # gtest
+if(NATIVEJIT_WITH_TEST)
+  add_subdirectory(googletest)
 
-add_subdirectory(googletest)
-
-include_directories(
-  ${gtest_SOURCE_DIR}/include
-)
+  include_directories(
+    ${gtest_SOURCE_DIR}/include
+  )
+endif()
 
 ###############################################################################
 
@@ -55,9 +58,11 @@ enable_testing()
 include_directories(inc)
 add_subdirectory(src/CodeGen)
 add_subdirectory(src/NativeJIT)
-add_subdirectory(test/CodeGen)
-add_subdirectory(test/NativeJIT)
-add_subdirectory(test/Shared)
+if(NATIVEJIT_WITH_TEST)
+  add_subdirectory(test/CodeGen)
+  add_subdirectory(test/NativeJIT)
+  add_subdirectory(test/Shared)
+endif()
 add_subdirectory(Examples)
 
 add_custom_target(TOPLEVEL SOURCES
@@ -68,5 +73,8 @@ add_custom_target(TOPLEVEL SOURCES
   README.md
 )
 
-set(ENV{GTEST_COLOR} 1)
-add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --verbose)
+if(NATIVEJIT_WITH_TEST)
+  set(ENV{GTEST_COLOR} 1)
+  add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --verbose)
+endif()
+
