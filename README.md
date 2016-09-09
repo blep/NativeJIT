@@ -177,7 +177,7 @@ or build from command line using `cmake`.
 
 # Rough performance figure
 
-Below are rough performance figure caputred from the example parser by Baptiste Lepilleur on a Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz on Windows 10 with Release build. 
+Below are rough performance figure captured from the example parser by Baptiste Lepilleur on a Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz on Windows 10 with Release build. 
 
 For simple formula as the one below, compile time is betwen 2 to 7 microsecond (0.000002 second to 0.000007 second).
 
