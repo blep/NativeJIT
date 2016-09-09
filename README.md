@@ -174,3 +174,58 @@ commands from the root `NativeJIT` directory:
 
 From now on you can use the generated solution `build-msvc\NativeJIT.sln` from Visual Studio
 or build from command line using `cmake`.
+
+# Rough performance figure
+
+Below are rough performance figure caputred from the example parser by Baptiste Lepilleur on a Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz on Windows 10 with Release build. 
+
+For simple formula as the one below, compile time is betwen 2 to 7 microsecond (0.000002 second to 0.000007 second).
+
+Eval time is clearly below chrono resolution and should be ignored.
+
+```
+Running test cases ...
+"1" ==> 1 OK
+Parse time: 13286 ns, Compile time: 12008 ns, Eval time: 0 ns
+"1.234" ==> 1.234 OK
+Parse time: 2044 ns, Compile time: 3576 ns, Eval time: 0 ns
+".1" ==> 0.1 OK
+Parse time: 1278 ns, Compile time: 2044 ns, Eval time: 255 ns
+"-2" ==> -2 OK
+Parse time: 767 ns, Compile time: 2043 ns, Eval time: 256 ns
+"-.1" ==> -0.1 OK
+Parse time: 1277 ns, Compile time: 3066 ns, Eval time: 0 ns
+"1e9" ==> 1e+09 OK
+Parse time: 1533 ns, Compile time: 4343 ns, Eval time: 0 ns
+"2e-8" ==> 2e-08 OK
+Parse time: 1789 ns, Compile time: 4087 ns, Eval time: 0 ns
+"3e+7" ==> 3e+07 OK
+Parse time: 1533 ns, Compile time: 4088 ns, Eval time: 255 ns
+"456.789e+5" ==> 4.56789e+07 OK
+Parse time: 1533 ns, Compile time: 4088 ns, Eval time: 0 ns
+"e" ==> 2.71828 OK
+Parse time: 767 ns, Compile time: 2810 ns, Eval time: 0 ns
+"pi" ==> 3.14159 OK
+Parse time: 511 ns, Compile time: 2811 ns, Eval time: 0 ns
+"1+2" ==> 3 OK
+Parse time: 1533 ns, Compile time: 14563 ns, Eval time: 255 ns
+"3+e" ==> 5.71828 OK
+Parse time: 1277 ns, Compile time: 3322 ns, Eval time: 255 ns
+"4-5" ==> -1 OK
+Parse time: 1277 ns, Compile time: 3832 ns, Eval time: 0 ns
+"2*3" ==> 6 OK
+Parse time: 1022 ns, Compile time: 2810 ns, Eval time: 0 ns
+"(3+4)" ==> 7 OK
+Parse time: 1789 ns, Compile time: 4598 ns, Eval time: 0 ns
+"(3+4)*(2+3)" ==> 35 OK
+Parse time: 2555 ns, Compile time: 5365 ns, Eval time: 0 ns
+"1+-2" ==> -1 OK
+Parse time: 1533 ns, Compile time: 4088 ns, Eval time: 0 ns
+"        1  + ( 2 * 10 )    " ==> 21 OK
+Parse time: 2044 ns, Compile time: 4088 ns, Eval time: 255 ns
+"sqrt(4)" ==> 2 OK
+Parse time: 2555 ns, Compile time: 6132 ns, Eval time: 256 ns
+"sqrt((3+4)*(2+3))" ==> 5.91608 OK
+Parse time: 3066 ns, Compile time: 6898 ns, Eval time: 0 ns
+All tests succeeded.
+```

@@ -1,3 +1,4 @@
+#include <chrono>
 #include <iostream>
 #include <math.h>       // For value of e.
 #include <stdexcept>
@@ -19,6 +20,19 @@ using NativeJIT::FunctionBuffer;
 namespace Examples
 {
 
+    struct PerfStat
+    {
+        long long parseNano_;
+        long long compileNano_;
+        long long evalNano_;
+
+        void print() 
+        {
+            std::cout << "Parse time: " << parseNano_ << " ns, Compile time: " << compileNano_ << " ns, Eval time: " << evalNano_ << " ns" << std::endl;
+        }
+    };
+
+
     class Parser
     {
     public:
@@ -35,7 +49,7 @@ namespace Examples
         // Compiles the expression, then invokes the resulting
         // function.
         //
-        float Evaluate();
+        float Evaluate( PerfStat &stat );
 
 
         //
@@ -128,13 +142,28 @@ namespace Examples
     {
     }
 
-
-    float Parser::Evaluate()
+    template<typename Time>
+    static long long elapsedNano( Time start, Time end )
     {
+        return std::chrono::duration<long long, std::nano>( end - start).count();
+    }
+
+    float Parser::Evaluate( PerfStat &stat )
+    {
+        auto startTime = std::chrono::high_resolution_clock::now();
         auto& root = Parse();
+        auto parseTime = std::chrono::high_resolution_clock::now();
         m_expression.Compile(root);
+        auto compileTime = std::chrono::high_resolution_clock::now();
         auto function = m_expression.GetEntryPoint();
-        return function();
+        auto result = function();
+        auto endTime = std::chrono::high_resolution_clock::now();
+
+        stat.parseNano_ = elapsedNano( startTime, parseTime );
+        stat.compileNano_ = elapsedNano( parseTime, compileTime );
+        stat.evalNano_ = elapsedNano( compileTime, endTime );
+
+        return result;
     }
 
 
@@ -441,10 +470,10 @@ bool Test()
             bool succeeded = false;
 
             output << "\"" << m_input << "\" ==> ";
-
+            Examples::PerfStat perfStat;
             try {
                 Examples::Parser parser(m_input, allocator, code);
-                float result = parser.Evaluate();
+                float result = parser.Evaluate( perfStat );
 
                 output << result;
 
@@ -462,6 +491,7 @@ bool Test()
             }
 
             output << std::endl;
+            perfStat.print();
 
             return succeeded;
         }
@@ -572,8 +602,10 @@ int main()
         try
         {
             Examples::Parser parser(line, allocator, code);
-            float result = parser.Evaluate();
+            Examples::PerfStat perfStat;
+            float result = parser.Evaluate( perfStat );
             std::cout << result << std::endl;
+            perfStat.print();
         }
         catch (Examples::Parser::ParseError& e)
         {
