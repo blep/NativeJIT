@@ -1,5 +1,6 @@
 #include <chrono>
 #include <iostream>
+#include <fstream>
 #include <math.h>       // For value of e.
 #include <stdexcept>
 #include <string>
@@ -561,7 +562,7 @@ bool Test()
 }
 
 
-int main()
+int main( int argc, const char *argv[] )
 {
 #ifndef NATIVEJIT_WITH_AFL
     std::cout << "Running test cases ..." << std::endl;
@@ -585,14 +586,27 @@ int main()
     FunctionBuffer code(codeAllocator, 8192);
     std::string prompt(">> ");
 
-   for (;;)
+    std::istream *inputStream = &std::cin;
+    std::ifstream ifs;
+    if ( argc > 1 )
+    {
+        ifs.open( argv[1] );
+        if ( !ifs.good() )
+        {
+            std::cout << "Failed to open file '" << argv[1] << "'." << std::endl;
+            return 1;
+        }
+        inputStream = &ifs;
+    }
+
+    for (;;)
     {
         allocator.Reset();
         codeAllocator.Reset();
 
         std::string line;
         std::cout << prompt << std::flush;
-        std::getline(std::cin, line);
+        std::getline(*inputStream, line);
 
         // TODO: Should really see if line is completely blank.
         // Blank lines cause the parser to crash.
@@ -616,7 +630,7 @@ int main()
             std::cout << std::string(prompt.length(), ' ');
             std::cout << e;
         }
-#ifndef NATIVEJIT_WITH_AFL
+#ifdef NATIVEJIT_WITH_AFL
         break;
 #endif
     }
