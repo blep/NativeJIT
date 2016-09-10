@@ -630,9 +630,6 @@ int main( int argc, const char *argv[] )
             std::cout << std::string(prompt.length(), ' ');
             std::cout << e;
         }
-#ifdef NATIVEJIT_WITH_AFL
-        break;
-#endif
     }
 
     return 0;
