@@ -232,9 +232,18 @@ All tests succeeded.
 
 # Running American Fuzzy Lop
 
+A good tutorial can be found on: https://foxglovesecurity.com/2016/03/15/fuzzing-workflows-a-fuzz-job-from-start-to-finish/
+
 ```
 docker run -ti -v /e/prg/prj/infracpp/NativeJIT:/work blep/docker-baseimage-clang38:0.2.0 /sbin/my_init bash
 ./Configure_AFL_Clang.sh
 (cd build-afl-make/ && make clean && make)
 ./Run_AFL.sh
+```
+
+# Minimizing test cases
+
+```
+mkdir /tmp/afl-tmin-work
+afl-tmin -i afl-crashes -o /tmp/afl-tmin-work/ -- build-afl-make/Examples/Parser/Parser
 ```
