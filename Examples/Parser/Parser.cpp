@@ -300,6 +300,8 @@ namespace Examples
         // parse as a floating point number.
         //
 
+        auto startPosition = m_currentPosition;
+
         // Optional leading '+' or '-'.
         if (PeekChar() == '+' || PeekChar() == '-')
         {
@@ -346,7 +348,14 @@ namespace Examples
         }
 
         // Parse s into a floating point value.
-        return stof(s);
+        try
+        {
+            return stof(s);
+        }
+        catch ( const std::exception& )
+        {
+            throw ParseError( "Invalid floating point value", startPosition );
+        }
     }
 
 
