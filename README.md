@@ -229,3 +229,12 @@ Parse time: 2555 ns, Compile time: 6132 ns, Eval time: 256 ns
 Parse time: 3066 ns, Compile time: 6898 ns, Eval time: 0 ns
 All tests succeeded.
 ```
+
+# Running American Fuzzy Lop
+
+```
+docker run -ti -v /e/prg/prj/infracpp/NativeJIT:/work blep/docker-baseimage-clang38:0.2.0 /sbin/my_init bash
+./Configure_AFL_Clang.sh
+(cd build-afl-make/ && make clean && make)
+./Run_AFL.sh
+```
