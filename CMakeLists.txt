@@ -51,7 +51,10 @@ elseif(CMAKE_COMPILER_IS_GNUCXX)
   # Need gnu++ instead of c++ so that GTest can access fdopen() etc.
   set(CMAKE_CXX_FLAGS "-march=native -std=gnu++14 -Wall -Wextra -Werror -Wold-style-cast")
 else()
-  set(CMAKE_CXX_FLAGS "-march=native -std=c++14 -Wall -Wextra -Werror -Wold-style-cast")
+  set(CMAKE_CXX_FLAGS "-march=native -std=c++14 -Wall -Wextra -Wold-style-cast")
+  if(NOT NATIVEJIT_WITH_AFL) # __AFL_LOOP inject an old-style-cast breaking compilation
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
+  endif()
 endif()
 
 

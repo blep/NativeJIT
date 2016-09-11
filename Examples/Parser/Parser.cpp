@@ -599,6 +599,9 @@ int main( int argc, const char *argv[] )
         inputStream = &ifs;
     }
 
+#ifdef NATIVEJIT_WITH_AFL
+    while ( __AFL_LOOP( 1000 ) )
+#endif
     for (;;)
     {
         allocator.Reset();

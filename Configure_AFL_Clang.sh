@@ -23,6 +23,9 @@
 #!/bin/sh
 
 echo "Configuring CMake for make/American Fuzzy Lop."
-mkdir build-make
-cd build-make
-CXX=afl-clang++ CC=afl-clang cmake -G "Unix Makefiles"  -DNATIVEJIT_WITH_TEST=OFF -DNATIVEJIT_WITH_AFL=ON ..
+if [ -d build-afl-make ]; then
+    rm -rf build-afl-make
+fi
+mkdir build-afl-make
+cd build-afl-make
+CXX=afl-clang-fast++ CC=afl-clang-fast cmake -G "Unix Makefiles"  -DNATIVEJIT_WITH_TEST=OFF -DNATIVEJIT_WITH_AFL=ON -DCMAKE_BUILD_TYPE=Release ..
