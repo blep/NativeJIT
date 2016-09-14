@@ -33,6 +33,60 @@ namespace Examples
         }
     };
 
+#if 0 /* idea to avoid templated parsing function */
+
+    template<NativeJIT::JccType JCC, typename T, typename U>
+    NativeJIT::Node<T> &makeIf( Function<T> &expr, NativeJIT::Node<U> &cmpLhs, NativeJIT::Node<U> &cmpRhs,
+                                NativeJIT::Node<T> &trueValue, NativeJIT::Node<T> &falseValue )
+    {
+        auto &cmp = expr.Compare<JCC>( lhs, rhs );
+        return expr.If( cmp, trueValue, falseValue );
+    }
+
+    template<typename T, typename U>
+    NativeJIT::Node<T> &If( Function<T> &expr, NativeJIT::Node<U> &cmpLhs, NativeJIT::JccType cmpOp, NativeJIT::Node<U> &cmpRhs,
+                            NativeJIT::Node<T> &trueValue, NativeJIT::Node<T> &falseValue )
+    {
+        switch ( cmpOp )
+        {
+        case NativeJIT::JccType::JO:
+            return makeIf<NativeJIT::JccType::JO>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+        case NativeJIT::JccType::JNO:
+            return makeIf<NativeJIT::JccType::JNO>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+        case NativeJIT::JccType::JB:
+            return makeIf<NativeJIT::JccType::JB>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+        case NativeJIT::JccType::JAE:
+            return makeIf<NativeJIT::JccType::JAE>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+        case NativeJIT::JccType::JE:
+            return makeIf<NativeJIT::JccType::JE>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+        case NativeJIT::JccType::JNE:
+            return makeIf<NativeJIT::JccType::JNE>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+        case NativeJIT::JccType::JBE:
+            return makeIf<NativeJIT::JccType::JBE>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+        case NativeJIT::JccType::JA:
+            return makeIf<NativeJIT::JccType::JA>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+        case NativeJIT::JccType::JS:
+            return makeIf<NativeJIT::JccType::JS>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+        case NativeJIT::JccType::JNS:
+            return makeIf<NativeJIT::JccType::JNS>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+        case NativeJIT::JccType::JP:
+            return makeIf<NativeJIT::JccType::JP>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+        case NativeJIT::JccType::JNP:
+            return makeIf<NativeJIT::JccType::JNP>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+        case NativeJIT::JccType::JL:
+            return makeIf<NativeJIT::JccType::JL>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+        case NativeJIT::JccType::JGE:
+            return makeIf<NativeJIT::JccType::JGE>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+        case NativeJIT::JccType::JLE:
+            return makeIf<NativeJIT::JccType::JLE>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+        case NativeJIT::JccType::JG:
+            return makeIf<NativeJIT::JccType::JG>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+        default:
+            throw std::invalid_argument( "Unsupported JccType comparison operator" );
+        }
+    }
+
+#endif
 
     class Parser
     {
@@ -91,7 +145,21 @@ namespace Examples
         //   (SUM)
         //   FLOAT
         //   SYMBOL
+        //   "sqrt" '(' SUM ')'
+        //   "ifNotZero" '(' SUM ',' SUM ',' SUM  ')'
+        //   "if" '(' IF ')'
         NativeJIT::Node<float>& ParseTerm();
+
+        // Parses expression of the form
+        // IF:
+        //   SUM ("<"|"<="|"=="|"!="|">="|">") IFVALUES
+        NativeJIT::Node<float> &ParseIf();
+
+        // Parses expression of the form
+        // IFVALUES:
+        //   SUM ',' SUM ',' SUM
+        template<NativeJIT::JccType JCC>
+        NativeJIT::Node<float> &ParseIfValues(NativeJIT::Node<float> &lhs);
 
         // Parses expressions of the form
         // FLOAT:
@@ -154,6 +222,7 @@ namespace Examples
         auto startTime = std::chrono::high_resolution_clock::now();
         auto& root = Parse();
         auto parseTime = std::chrono::high_resolution_clock::now();
+//        m_expression.EnableDiagnostics( std::cout );
         m_expression.Compile(root);
         auto compileTime = std::chrono::high_resolution_clock::now();
         auto function = m_expression.GetEntryPoint();
@@ -263,13 +332,31 @@ namespace Examples
                 const float pi = static_cast<float>(atan(1) * 4);
                 return m_expression.Immediate(pi);
             }
-            else if (symbol.compare("sqrt") == 0)
+            else if (symbol.compare( "sqrt" ) == 0)
             {
-                Consume('(');
+                Consume( '(' );
                 auto& parameter = ParseSum();
-                Consume(')');
-                auto & sqrtFunction = m_expression.Immediate(sqrtf);
-                return m_expression.Call(sqrtFunction, parameter);
+                Consume( ')' );
+                auto & sqrtFunction = m_expression.Immediate( sqrtf );
+                return m_expression.Call( sqrtFunction, parameter );
+            }
+            else if (symbol.compare( "ifNotZero" ) == 0)
+            {
+                Consume( '(' );
+                auto& conditionValue = ParseSum();
+                Consume( ',' );
+                auto& trueValue = ParseSum();
+                Consume( ',' );
+                auto& falseValue = ParseSum();
+                Consume( ')' );
+                return m_expression.IfNotZero( conditionValue, trueValue, falseValue );
+            }
+            else if (symbol.compare( "if" ) == 0)
+            {
+                Consume( '(' );
+                auto &ifValue = ParseIf();
+                Consume( ')' );
+                return ifValue;
             }
             else
             {
@@ -284,6 +371,80 @@ namespace Examples
             throw ParseError("Expected a number, symbol or parenthesized expression.",
                              m_currentPosition);
         }
+    }
+
+    template<NativeJIT::JccType JCC>
+    NativeJIT::Node<float> &Parser::ParseIfValues( NativeJIT::Node<float> &lhs )
+    {
+        SkipWhite();
+        auto& rhs = ParseSum();
+        SkipWhite();
+        auto &cmp = m_expression.Compare<JCC>( lhs, rhs );
+        Consume(',');
+        auto& ifTrue = ParseSum();
+        SkipWhite();
+        Consume( ',' );
+        auto& ifFalse = ParseSum();
+        SkipWhite();
+        return m_expression.Conditional( cmp, ifTrue, ifFalse );
+    }
+
+
+    NativeJIT::Node<float>& Parser::ParseIf()
+    {
+        auto& lhs = ParseSum();
+        SkipWhite();
+
+        // NativeJIT floating point comparison is done using the comiss x86 instruction
+        // http://x86.renejeschke.de/html/file_module_x86_id_44.html
+        // ZF = 1 => equal
+        // ZF = 0 & CF = 1 => less than
+        // ZF = 0 & CF = 0 => greater than
+        //
+        // jb   CF = 1              less than
+        // jbe  CF = 1 || ZF = 1    less than or equal
+        // je   ZF = 1              equal
+        // jbe  ZF = 0              not equal
+        // ja   CF = 0 && ZF = 0    greater than
+        // jae  CF = 0 || ZF = 1    greater than or equal
+        //
+        // Not applicable to float (use flags other ZF/CF set by comiss)
+        // jg, jge, jl, jle, jo, js, jns
+        // 
+        // Visual Studio debugging note: Flags register show with different name.
+        // See https://msdn.microsoft.com/en-us/library/kwydd1t7(v=vs.85).aspx
+        // PL = SF
+        // OF = OV
+        // ZF = ZR
+        // CY = CF
+
+        auto startPosition = m_currentPosition;
+        char first = GetChar();
+        switch ( first )
+        {
+        case '<':
+            if ( PeekChar() == '=' )
+            {
+                GetChar();
+                return ParseIfValues<NativeJIT::JccType::JBE>( lhs );
+            }
+            return ParseIfValues<NativeJIT::JccType::JB>( lhs );
+        case '>':
+            if (PeekChar() == '=')
+            {
+                GetChar();
+                return ParseIfValues<NativeJIT::JccType::JAE>( lhs );
+            }
+            return ParseIfValues<NativeJIT::JccType::JA>( lhs );
+        case '=':
+            Consume( '=' );
+            return ParseIfValues<NativeJIT::JccType::JE>( lhs );
+        case '!':
+            Consume( '=' );
+            return ParseIfValues<NativeJIT::JccType::JNE>( lhs );
+        };
+
+        throw ParseError( "Expected comparison operator", startPosition );
     }
 
 
@@ -450,7 +611,6 @@ namespace Examples
 }
 
 
-
 /******************************************************************************
  *
  * Test() runs a number of test cases for the parser.
@@ -552,19 +712,55 @@ bool Test()
         // sqrt
         TestCase("sqrt(4)", 2.0),
         TestCase("sqrt((3+4)*(2+3))", sqrtf(35)),
+
+        // ifNotZero
+        TestCase( "ifNotZero(1, 2, 3)", 2.0 ),
+        TestCase( "ifNotZero(0, 2, 3)", 3.0 ),
+
+        // if
+        TestCase( "if(1 == 1, 3, 4)", 3.0 ),
+        TestCase( "if(1 == 2, 3, 4)", 4.0 ),
+        TestCase( "if(1 != 2, 3, 4)", 3.0 ),
+        TestCase( "if(1 != 1, 3, 4)", 4.0 ),
+        TestCase( "if(1 < 2, 3, 4)", 3.0 ),
+        TestCase( "if(5 < 2, 3, 4)", 4.0 ),
+        TestCase( "if(2 < 2, 3, 4)", 4.0 ),
+        TestCase( "if(1 <= 2, 3, 4)", 3.0 ),
+        TestCase( "if(1 <= 1, 3, 4)", 3.0 ),
+        TestCase( "if(5 <= 2, 3, 4)", 4.0 ),
+        TestCase( "if(5 >= 2, 3, 4)", 3.0 ),
+        TestCase( "if(1 >= 2, 3, 4)", 4.0 ),
+        TestCase( "if(2 >= 2, 3, 4)", 3.0 ),
+        TestCase( "if(5 > 2, 3, 4)", 3.0 ),
+        TestCase( "if(1 > 2, 3, 4)", 4.0 ),
+        TestCase( "if(2 > 2, 3, 4)", 4.0 ),
+
+        // VS Flags (https://msdn.microsoft.com/en-us/library/kwydd1t7(v=vs.85).aspx)
+        // PL = SF
+        // OF = OV
+        // ZF = ZR
+        // CY = CF
+        // jg: PL = OV and ZR = 0
+        // 1 < 2: OV = 0 UP = 0 EI = 1 PL = 0 ZR = 0 AC = 0 PE = 0 CY = 1
+        // 5 < 2: OV = 0 UP = 0 EI = 1 PL = 0 ZR = 0 AC = 0 PE = 0 CY = 0 
+        // => only difference in on CY, the carry flag
     };
 
 
     ExecutionBuffer codeAllocator(8192);
     Allocator allocator(8192);
     FunctionBuffer code(codeAllocator, 8192);
+    //code.EnableDiagnostics( std::cout );
 
     bool success = true;
     for (size_t i = 0; i < sizeof(cases) / sizeof(TestCase); ++i)
     {
         allocator.Reset();
         codeAllocator.Reset();
-        success &= cases[i].Run(std::cout, allocator, code);
+//        if ( i == (sizeof( cases ) / sizeof( TestCase )-1) )
+        {
+            success &= cases[i].Run(std::cout, allocator, code);
+        }
     }
 
     return success;
@@ -593,6 +789,7 @@ int main( int argc, const char *argv[] )
     ExecutionBuffer codeAllocator(8192);
     Allocator allocator(8192);
     FunctionBuffer code(codeAllocator, 8192);
+    //code.EnableDiagnostics( std::cout ); // uncomment to see assembly generated for the function
     std::string prompt(">> ");
 
     std::istream *inputStream = &std::cin;
