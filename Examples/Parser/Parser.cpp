@@ -17,10 +17,10 @@ using NativeJIT::ExecutionBuffer;
 using NativeJIT::Function;
 using NativeJIT::FunctionBuffer;
 
+using Real = double;
 
 namespace Examples
 {
-
     struct PerfStat
     {
         long long parseNano_;
@@ -32,6 +32,26 @@ namespace Examples
             std::cout << "Parse time: " << parseNano_ << " ns, Compile time: " << compileNano_ << " ns, Eval time: " << evalNano_ << " ns" << std::endl;
         }
     };
+
+    template<typename FloatType>
+    struct StringToReal
+    {
+        FloatType operator()( const std::string &str ) const
+        {
+            return std::stof( str );
+        }
+    };
+
+    template<>
+    struct StringToReal<double>
+    {
+        double operator()( const std::string &str ) const
+        {
+            return std::stod( str );
+        }
+    };
+
+    static StringToReal<Real> stringToReal;
 
 #if 0 /* idea to avoid templated parsing function */
 
@@ -104,7 +124,7 @@ namespace Examples
         // Compiles the expression, then invokes the resulting
         // function.
         //
-        float Evaluate( PerfStat &stat );
+        Real Evaluate( PerfStat &stat );
 
 
         //
@@ -127,18 +147,18 @@ namespace Examples
         // Parses an expression of the form
         // EXPRESSION:
         //   SUM
-        NativeJIT::Node<float>& Parse();
+        NativeJIT::Node<Real>& Parse();
 
         // Parses expressions of form
         // SUM:
         //   PRODUCT ('+' PRODUCT)*
         //   PRODUCT ('-' PRODUCT)*
-        NativeJIT::Node<float>& ParseSum();
+        NativeJIT::Node<Real>& ParseSum();
 
         // Parses expressions of the form
         // PRODUCT:
         //   TERM ('*' TERM)*
-        NativeJIT::Node<float>& ParseProduct();
+        NativeJIT::Node<Real>& ParseProduct();
 
         // Parses expressions of the form
         // TERM:
@@ -148,23 +168,23 @@ namespace Examples
         //   "sqrt" '(' SUM ')'
         //   "ifNotZero" '(' SUM ',' SUM ',' SUM  ')'
         //   "if" '(' IF ')'
-        NativeJIT::Node<float>& ParseTerm();
+        NativeJIT::Node<Real>& ParseTerm();
 
         // Parses expression of the form
         // IF:
         //   SUM ("<"|"<="|"=="|"!="|">="|">") IFVALUES
-        NativeJIT::Node<float> &ParseIf();
+        NativeJIT::Node<Real> &ParseIf();
 
         // Parses expression of the form
         // IFVALUES:
         //   SUM ',' SUM ',' SUM
         template<NativeJIT::JccType JCC>
-        NativeJIT::Node<float> &ParseIfValues(NativeJIT::Node<float> &lhs);
+        NativeJIT::Node<Real> &ParseIfValues(NativeJIT::Node<Real> &lhs);
 
         // Parses expressions of the form
         // FLOAT:
         //   [ '+' | '-' ] (DIGIT)* [ '.' DIGIT*] [ ('e' | 'E') [ '+' | '-' ] DIGIT* ]
-        float ParseFloat();
+        Real ParseFloat();
 
         // Parses expressions of the form
         // SYMBOL: ALPHA (ALPHA | DIGIT)*
@@ -198,7 +218,7 @@ namespace Examples
         size_t m_currentPosition;
 
         // NativeJIT Function used to build and compile parsed expression.
-        Function<float> m_expression;
+        Function<Real> m_expression;
     };
 
 
@@ -217,7 +237,7 @@ namespace Examples
         return std::chrono::duration<long long, std::nano>( end - start).count();
     }
 
-    float Parser::Evaluate( PerfStat &stat )
+    Real Parser::Evaluate( PerfStat &stat )
     {
         auto startTime = std::chrono::high_resolution_clock::now();
         auto& root = Parse();
@@ -237,7 +257,7 @@ namespace Examples
     }
 
 
-    NativeJIT::Node<float>& Parser::Parse()
+    NativeJIT::Node<Real>& Parser::Parse()
     {
         auto& expression = ParseSum();
 
@@ -251,7 +271,7 @@ namespace Examples
     }
 
 
-    NativeJIT::Node<float>& Parser::ParseSum()
+    NativeJIT::Node<Real>& Parser::ParseSum()
     {
         auto& left = ParseProduct();
 
@@ -277,7 +297,7 @@ namespace Examples
     }
 
 
-    NativeJIT::Node<float>& Parser::ParseProduct()
+    NativeJIT::Node<Real>& Parser::ParseProduct()
     {
         auto& left = ParseTerm();
 
@@ -296,7 +316,7 @@ namespace Examples
     }
 
 
-    NativeJIT::Node<float>& Parser::ParseTerm()
+    NativeJIT::Node<Real>& Parser::ParseTerm()
     {
         SkipWhite();
 
@@ -314,7 +334,7 @@ namespace Examples
         }
         else if (IsFirstCharOfFloat(next))
         {
-            float f = ParseFloat();
+            Real f = ParseFloat();
             return m_expression.Immediate(f);
         }
         else if (isalpha(next))
@@ -323,13 +343,13 @@ namespace Examples
             if (symbol.compare("e") == 0)
             {
                 // 'e' denotes Euler's number.
-                const float e = static_cast<float>(exp(1));
+                const Real e = static_cast<Real>(exp(1));
                 return m_expression.Immediate(e);
             }
             else if (symbol.compare("pi") == 0)
             {
                 // 'pi' denotes the mathematical constant pi.
-                const float pi = static_cast<float>(atan(1) * 4);
+                const Real pi = static_cast<Real>(atan(1) * 4);
                 return m_expression.Immediate(pi);
             }
             else if (symbol.compare( "sqrt" ) == 0)
@@ -337,7 +357,8 @@ namespace Examples
                 Consume( '(' );
                 auto& parameter = ParseSum();
                 Consume( ')' );
-                auto & sqrtFunction = m_expression.Immediate( sqrtf );
+                Real (*sqrtFn)( Real value) = &sqrt;
+                auto & sqrtFunction = m_expression.Immediate( sqrtFn );
                 return m_expression.Call( sqrtFunction, parameter );
             }
             else if (symbol.compare( "ifNotZero" ) == 0)
@@ -374,7 +395,7 @@ namespace Examples
     }
 
     template<NativeJIT::JccType JCC>
-    NativeJIT::Node<float> &Parser::ParseIfValues( NativeJIT::Node<float> &lhs )
+    NativeJIT::Node<Real> &Parser::ParseIfValues( NativeJIT::Node<Real> &lhs )
     {
         SkipWhite();
         auto& rhs = ParseSum();
@@ -390,7 +411,7 @@ namespace Examples
     }
 
 
-    NativeJIT::Node<float>& Parser::ParseIf()
+    NativeJIT::Node<Real>& Parser::ParseIf()
     {
         auto& lhs = ParseSum();
         SkipWhite();
@@ -448,10 +469,10 @@ namespace Examples
     }
 
 
-    float Parser::ParseFloat()
+    Real Parser::ParseFloat()
     {
         // s will hold a string of floating point number characters that will
-        // eventually be passed to stof().
+        // eventually be passed to stringToReal().
         std::string s;
 
         SkipWhite();
@@ -511,7 +532,7 @@ namespace Examples
         // Parse s into a floating point value.
         try
         {
-            return stof(s);
+            return stringToReal(s);
         }
         catch ( const std::exception& )
         {
@@ -630,7 +651,7 @@ bool Test()
         // constant. Consider just changing entire example to use doubles.
         TestCase(char const * input, double output)
             : m_input(input),
-            m_output(static_cast<float>(output))
+            m_output(static_cast<Real>(output))
         {
         }
 
@@ -643,7 +664,7 @@ bool Test()
             Examples::PerfStat perfStat;
             try {
                 Examples::Parser parser(m_input, allocator, code);
-                float result = parser.Evaluate( perfStat );
+                Real result = parser.Evaluate( perfStat );
 
                 output << result;
 
@@ -668,7 +689,7 @@ bool Test()
 
     private:
         char const * m_input;
-        float m_output;
+        Real m_output;
     };
 
 
@@ -686,12 +707,12 @@ bool Test()
         TestCase("456.789e+5", 456.789e+5),
 
         // Symbols
-        TestCase("e", static_cast<float>(exp(1))),
-        TestCase("pi", static_cast<float>(atan(1) * 4)),
+        TestCase("e", static_cast<Real>(exp(1))),
+        TestCase("pi", static_cast<Real>(atan(1) * 4)),
 
         // Addition
         TestCase("1+2", 3.0),
-        TestCase("3+e", 3.0 + static_cast<float>(exp(1))),
+        TestCase("3+e", 3.0 + static_cast<Real>(exp(1))),
 
         // Subtraction
         TestCase("4-5", -1.0),
@@ -828,7 +849,7 @@ int main( int argc, const char *argv[] )
         {
             Examples::Parser parser(line, allocator, code);
             Examples::PerfStat perfStat;
-            float result = parser.Evaluate( perfStat );
+            Real result = parser.Evaluate( perfStat );
             std::cout << result << std::endl;
 #ifndef NATIVEJIT_WITH_AFL
             perfStat.print();
