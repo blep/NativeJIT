@@ -33,13 +33,13 @@ namespace Examples
         }
     };
 
-#if 0 /* idea to avoid templated parsing function */
+#if 1 /* idea to avoid templated parsing function */
 
     template<NativeJIT::JccType JCC, typename T, typename U>
     NativeJIT::Node<T> &makeIf( Function<T> &expr, NativeJIT::Node<U> &cmpLhs, NativeJIT::Node<U> &cmpRhs,
                                 NativeJIT::Node<T> &trueValue, NativeJIT::Node<T> &falseValue )
     {
-        auto &cmp = expr.Compare<JCC>( lhs, rhs );
+        auto &cmp = expr.Compare<JCC>( cmpLhs, cmpRhs );
         return expr.If( cmp, trueValue, falseValue );
     }
 
@@ -50,37 +50,37 @@ namespace Examples
         switch ( cmpOp )
         {
         case NativeJIT::JccType::JO:
-            return makeIf<NativeJIT::JccType::JO>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+            return makeIf<NativeJIT::JccType::JO>( expr, cmpLhs, cmpRhs, trueValue, falseValue );
         case NativeJIT::JccType::JNO:
-            return makeIf<NativeJIT::JccType::JNO>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+            return makeIf<NativeJIT::JccType::JNO>( expr, cmpLhs, cmpRhs, trueValue, falseValue );
         case NativeJIT::JccType::JB:
-            return makeIf<NativeJIT::JccType::JB>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+            return makeIf<NativeJIT::JccType::JB>( expr, cmpLhs, cmpRhs, trueValue, falseValue );
         case NativeJIT::JccType::JAE:
-            return makeIf<NativeJIT::JccType::JAE>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+            return makeIf<NativeJIT::JccType::JAE>( expr, cmpLhs, cmpRhs, trueValue, falseValue );
         case NativeJIT::JccType::JE:
-            return makeIf<NativeJIT::JccType::JE>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+            return makeIf<NativeJIT::JccType::JE>( expr, cmpLhs, cmpRhs, trueValue, falseValue );
         case NativeJIT::JccType::JNE:
-            return makeIf<NativeJIT::JccType::JNE>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+            return makeIf<NativeJIT::JccType::JNE>( expr, cmpLhs, cmpRhs, trueValue, falseValue );
         case NativeJIT::JccType::JBE:
-            return makeIf<NativeJIT::JccType::JBE>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+            return makeIf<NativeJIT::JccType::JBE>( expr, cmpLhs, cmpRhs, trueValue, falseValue );
         case NativeJIT::JccType::JA:
-            return makeIf<NativeJIT::JccType::JA>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+            return makeIf<NativeJIT::JccType::JA>( expr, cmpLhs, cmpRhs, trueValue, falseValue );
         case NativeJIT::JccType::JS:
-            return makeIf<NativeJIT::JccType::JS>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+            return makeIf<NativeJIT::JccType::JS>( expr, cmpLhs, cmpRhs, trueValue, falseValue );
         case NativeJIT::JccType::JNS:
-            return makeIf<NativeJIT::JccType::JNS>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+            return makeIf<NativeJIT::JccType::JNS>( expr, cmpLhs, cmpRhs, trueValue, falseValue );
         case NativeJIT::JccType::JP:
-            return makeIf<NativeJIT::JccType::JP>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+            return makeIf<NativeJIT::JccType::JP>( expr, cmpLhs, cmpRhs, trueValue, falseValue );
         case NativeJIT::JccType::JNP:
-            return makeIf<NativeJIT::JccType::JNP>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+            return makeIf<NativeJIT::JccType::JNP>( expr, cmpLhs, cmpRhs, trueValue, falseValue );
         case NativeJIT::JccType::JL:
-            return makeIf<NativeJIT::JccType::JL>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+            return makeIf<NativeJIT::JccType::JL>( expr, cmpLhs, cmpRhs, trueValue, falseValue );
         case NativeJIT::JccType::JGE:
-            return makeIf<NativeJIT::JccType::JGE>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+            return makeIf<NativeJIT::JccType::JGE>( expr, cmpLhs, cmpRhs, trueValue, falseValue );
         case NativeJIT::JccType::JLE:
-            return makeIf<NativeJIT::JccType::JLE>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+            return makeIf<NativeJIT::JccType::JLE>( expr, cmpLhs, cmpRhs, trueValue, falseValue );
         case NativeJIT::JccType::JG:
-            return makeIf<NativeJIT::JccType::JG>( expr, cmpLhs, cmpOp, cmpRhs, trueValue, falseValue );
+            return makeIf<NativeJIT::JccType::JG>( expr, cmpLhs, cmpRhs, trueValue, falseValue );
         default:
             throw std::invalid_argument( "Unsupported JccType comparison operator" );
         }
@@ -88,9 +88,12 @@ namespace Examples
 
 #endif
 
+    template<typename RealType>
     class Parser
     {
     public:
+        using Real = RealType;
+
         //
         // Constructs a parser for the expression text in src.
         // Allocator and FunctionBuffer are constructor parameters
@@ -104,7 +107,7 @@ namespace Examples
         // Compiles the expression, then invokes the resulting
         // function.
         //
-        float Evaluate( PerfStat &stat );
+        Real Evaluate( PerfStat &stat );
 
 
         //
@@ -127,18 +130,18 @@ namespace Examples
         // Parses an expression of the form
         // EXPRESSION:
         //   SUM
-        NativeJIT::Node<float>& Parse();
+        NativeJIT::Node<RealType>& Parse();
 
         // Parses expressions of form
         // SUM:
         //   PRODUCT ('+' PRODUCT)*
         //   PRODUCT ('-' PRODUCT)*
-        NativeJIT::Node<float>& ParseSum();
+        NativeJIT::Node<RealType>& ParseSum();
 
         // Parses expressions of the form
         // PRODUCT:
         //   TERM ('*' TERM)*
-        NativeJIT::Node<float>& ParseProduct();
+        NativeJIT::Node<RealType>& ParseProduct();
 
         // Parses expressions of the form
         // TERM:
@@ -148,23 +151,22 @@ namespace Examples
         //   "sqrt" '(' SUM ')'
         //   "ifNotZero" '(' SUM ',' SUM ',' SUM  ')'
         //   "if" '(' IF ')'
-        NativeJIT::Node<float>& ParseTerm();
+        NativeJIT::Node<RealType>& ParseTerm();
 
         // Parses expression of the form
         // IF:
         //   SUM ("<"|"<="|"=="|"!="|">="|">") IFVALUES
-        NativeJIT::Node<float> &ParseIf();
+        NativeJIT::Node<Real> &ParseIf();
 
         // Parses expression of the form
-        // IFVALUES:
-        //   SUM ',' SUM ',' SUM
-        template<NativeJIT::JccType JCC>
-        NativeJIT::Node<float> &ParseIfValues(NativeJIT::Node<float> &lhs);
+        // "<"|"<="|"=="|"!="|">="|">"
+        // Returns JccType suitable for floating-point comparison.
+        NativeJIT::JccType ParseCmpOp();
 
         // Parses expressions of the form
         // FLOAT:
         //   [ '+' | '-' ] (DIGIT)* [ '.' DIGIT*] [ ('e' | 'E') [ '+' | '-' ] DIGIT* ]
-        float ParseFloat();
+        Real ParseFloat();
 
         // Parses expressions of the form
         // SYMBOL: ALPHA (ALPHA | DIGIT)*
@@ -198,13 +200,14 @@ namespace Examples
         size_t m_currentPosition;
 
         // NativeJIT Function used to build and compile parsed expression.
-        Function<float> m_expression;
+        Function<Real> m_expression;
     };
 
 
-    Parser::Parser(std::string const & src,
-                   Allocator& allocator,
-                   FunctionBuffer& code)
+    template<typename RealType>
+    Parser<RealType>::Parser(std::string const & src,
+                             Allocator& allocator,
+                             FunctionBuffer& code)
         : m_src(src),
           m_currentPosition(0),
           m_expression(allocator, code)
@@ -217,7 +220,8 @@ namespace Examples
         return std::chrono::duration<long long, std::nano>( end - start).count();
     }
 
-    float Parser::Evaluate( PerfStat &stat )
+    template<typename RealType>
+    RealType Parser<RealType>::Evaluate( PerfStat &stat )
     {
         auto startTime = std::chrono::high_resolution_clock::now();
         auto& root = Parse();
@@ -237,7 +241,8 @@ namespace Examples
     }
 
 
-    NativeJIT::Node<float>& Parser::Parse()
+    template<typename RealType>
+    NativeJIT::Node<RealType>& Parser<RealType>::Parse()
     {
         auto& expression = ParseSum();
 
@@ -250,8 +255,8 @@ namespace Examples
         return expression;
     }
 
-
-    NativeJIT::Node<float>& Parser::ParseSum()
+    template<typename RealType>
+    NativeJIT::Node<RealType>& Parser<RealType>::ParseSum()
     {
         auto& left = ParseProduct();
 
@@ -277,7 +282,8 @@ namespace Examples
     }
 
 
-    NativeJIT::Node<float>& Parser::ParseProduct()
+    template<typename RealType>
+    NativeJIT::Node<RealType>& Parser<RealType>::ParseProduct()
     {
         auto& left = ParseTerm();
 
@@ -296,7 +302,8 @@ namespace Examples
     }
 
 
-    NativeJIT::Node<float>& Parser::ParseTerm()
+    template<typename RealType>
+    NativeJIT::Node<RealType>& Parser<RealType>::ParseTerm()
     {
         SkipWhite();
 
@@ -314,7 +321,7 @@ namespace Examples
         }
         else if (IsFirstCharOfFloat(next))
         {
-            float f = ParseFloat();
+            Real f = ParseFloat();
             return m_expression.Immediate(f);
         }
         else if (isalpha(next))
@@ -323,13 +330,13 @@ namespace Examples
             if (symbol.compare("e") == 0)
             {
                 // 'e' denotes Euler's number.
-                const float e = static_cast<float>(exp(1));
+                const Real e = static_cast<Real>(exp(1));
                 return m_expression.Immediate(e);
             }
             else if (symbol.compare("pi") == 0)
             {
                 // 'pi' denotes the mathematical constant pi.
-                const float pi = static_cast<float>(atan(1) * 4);
+                const Real pi = static_cast<Real>(atan(1) * 4);
                 return m_expression.Immediate(pi);
             }
             else if (symbol.compare( "sqrt" ) == 0)
@@ -373,28 +380,29 @@ namespace Examples
         }
     }
 
-    template<NativeJIT::JccType JCC>
-    NativeJIT::Node<float> &Parser::ParseIfValues( NativeJIT::Node<float> &lhs )
+
+    template<typename RealType>
+    NativeJIT::Node<RealType>& Parser<RealType>::ParseIf()
     {
+        auto& lhs = ParseSum();
+        SkipWhite();
+        auto cmpOp = ParseCmpOp();
         SkipWhite();
         auto& rhs = ParseSum();
         SkipWhite();
-        auto &cmp = m_expression.Compare<JCC>( lhs, rhs );
-        Consume(',');
+        Consume( ',' );
         auto& ifTrue = ParseSum();
         SkipWhite();
         Consume( ',' );
         auto& ifFalse = ParseSum();
         SkipWhite();
-        return m_expression.Conditional( cmp, ifTrue, ifFalse );
+        return If(m_expression, lhs, cmpOp, rhs, ifTrue, ifFalse );
     }
 
 
-    NativeJIT::Node<float>& Parser::ParseIf()
+    template<typename RealType>
+    NativeJIT::JccType Parser<RealType>::ParseCmpOp()
     {
-        auto& lhs = ParseSum();
-        SkipWhite();
-
         // NativeJIT floating point comparison is done using the comiss x86 instruction
         // http://x86.renejeschke.de/html/file_module_x86_id_44.html
         // ZF = 1 => equal
@@ -408,7 +416,7 @@ namespace Examples
         // ja   CF = 0 && ZF = 0    greater than
         // jae  CF = 0 || ZF = 1    greater than or equal
         //
-        // Not applicable to float (use flags other ZF/CF set by comiss)
+        // Not applicable to Real (use flags other ZF/CF set by comiss)
         // jg, jge, jl, jle, jo, js, jns
         // 
         // Visual Studio debugging note: Flags register show with different name.
@@ -420,35 +428,35 @@ namespace Examples
 
         auto startPosition = m_currentPosition;
         char first = GetChar();
-        switch ( first )
+        switch (first)
         {
         case '<':
-            if ( PeekChar() == '=' )
+            if (PeekChar() == '=')
             {
                 GetChar();
-                return ParseIfValues<NativeJIT::JccType::JBE>( lhs );
+                return NativeJIT::JccType::JBE;
             }
-            return ParseIfValues<NativeJIT::JccType::JB>( lhs );
+            return NativeJIT::JccType::JB;
         case '>':
             if (PeekChar() == '=')
             {
                 GetChar();
-                return ParseIfValues<NativeJIT::JccType::JAE>( lhs );
+                return NativeJIT::JccType::JAE;
             }
-            return ParseIfValues<NativeJIT::JccType::JA>( lhs );
+            return NativeJIT::JccType::JA;
         case '=':
             Consume( '=' );
-            return ParseIfValues<NativeJIT::JccType::JE>( lhs );
+            return NativeJIT::JccType::JE;
         case '!':
             Consume( '=' );
-            return ParseIfValues<NativeJIT::JccType::JNE>( lhs );
+            return NativeJIT::JccType::JNE;
         };
-
         throw ParseError( "Expected comparison operator", startPosition );
     }
 
 
-    float Parser::ParseFloat()
+    template<typename RealType>
+    RealType Parser<RealType>::ParseFloat()
     {
         // s will hold a string of floating point number characters that will
         // eventually be passed to stof().
@@ -520,7 +528,8 @@ namespace Examples
     }
 
 
-    std::string Parser::ParseSymbol()
+    template<typename RealType>
+    std::string Parser<RealType>::ParseSymbol()
     {
         std::string symbol;
 
@@ -538,13 +547,15 @@ namespace Examples
     }
 
 
-    bool Parser::IsFirstCharOfFloat(char c)
+    template<typename RealType>
+    bool Parser<RealType>::IsFirstCharOfFloat(char c)
     {
         return isdigit(c) || (c == '-') || (c == '+') || (c == '.');
     }
 
 
-    void Parser::SkipWhite()
+    template<typename RealType>
+    void Parser<RealType>::SkipWhite()
     {
         while (isspace(PeekChar()))
         {
@@ -553,7 +564,8 @@ namespace Examples
     }
 
 
-    void Parser::Consume(char c)
+    template<typename RealType>
+    void Parser<RealType>::Consume(char c)
     {
         if (PeekChar() != c)
         {
@@ -568,8 +580,9 @@ namespace Examples
         }
     }
 
-
-    char Parser::GetChar()
+    
+    template<typename RealType>
+    char Parser<RealType>::GetChar()
     {
         char result = PeekChar();
         if (result != '\0')
@@ -580,7 +593,8 @@ namespace Examples
     }
 
 
-    char Parser::PeekChar()
+    template<typename RealType>
+    char Parser<RealType>::PeekChar()
     {
         if (m_currentPosition >= m_src.length())
         {
@@ -593,14 +607,16 @@ namespace Examples
     }
 
 
-    Parser::ParseError::ParseError(char const * message, size_t position)
+    template<typename RealType>
+    Parser<RealType>::ParseError::ParseError(char const * message, size_t position)
         : std::runtime_error(message),
           m_position(position)
     {
     }
 
 
-    std::ostream& operator<< (std::ostream &out, const Parser::ParseError &e)
+    template<typename RealType>
+    std::ostream& operator<< (std::ostream &out, const typename Parser<RealType>::ParseError &e)
     {
         out << std::string(e.m_position, ' ') << '^' << std::endl;
         out << "Parser error (position = " << e.m_position << "): ";
@@ -642,8 +658,9 @@ bool Test()
             output << "\"" << m_input << "\" ==> ";
             Examples::PerfStat perfStat;
             try {
-                Examples::Parser parser(m_input, allocator, code);
-                float result = parser.Evaluate( perfStat );
+                using Real = float;
+                Examples::Parser<Real> parser(m_input, allocator, code);
+                Real result = parser.Evaluate( perfStat );
 
                 output << result;
 
@@ -824,9 +841,10 @@ int main( int argc, const char *argv[] )
             break;
         }
 
+        using Real = float;
         try
         {
-            Examples::Parser parser(line, allocator, code);
+            Examples::Parser<Real> parser(line, allocator, code);
             Examples::PerfStat perfStat;
             float result = parser.Evaluate( perfStat );
             std::cout << result << std::endl;
@@ -834,7 +852,7 @@ int main( int argc, const char *argv[] )
             perfStat.print();
 #endif
         }
-        catch (Examples::Parser::ParseError& e)
+        catch (Examples::Parser<Real>::ParseError& e)
         {
             std::cout << std::string(prompt.length(), ' ');
             std::cout << e;
