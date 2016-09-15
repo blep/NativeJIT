@@ -171,7 +171,7 @@ namespace Examples
         // Compiles the expression, then invokes the resulting
         // function.
         //
-        Real Evaluate( PerfStat &stat );
+        Real Evaluate( PerfStat &stat, const Real *variables=nullptr, size_t nbVariables=0 );
 
 
         //
@@ -265,10 +265,13 @@ namespace Examples
         size_t m_currentPosition;
 
         // NativeJIT Function used to build and compile parsed expression.
-        Function<Real> m_expression;
+        Function<Real, const Real *> m_expression;
 
         // constant, variable & function declarations
         const Symbols &m_symbols;
+
+        std::vector<NativeJIT::Node<const Real *> *> m_variablePointers;
+        VariableId m_minNbVariable;
     };
 
 
@@ -318,7 +321,8 @@ namespace Examples
         : m_src(src),
           m_currentPosition(0),
           m_expression(allocator, code),
-          m_symbols(symbols)
+          m_symbols(symbols),
+          m_minNbVariable( 0 )
     {
     }
 
@@ -328,8 +332,11 @@ namespace Examples
         return std::chrono::duration<long long, std::nano>( end - start).count();
     }
 
-    Real Parser::Evaluate( PerfStat &stat )
+    Real Parser::Evaluate( PerfStat &stat, const Real *variables, size_t nbVariables )
     {
+        if ( nbVariables < m_minNbVariable )
+            throw std::invalid_argument( "Not enough variables given to Parse::Evaluate()" );
+
         auto startTime = std::chrono::high_resolution_clock::now();
         auto& root = Parse();
         auto parseTime = std::chrono::high_resolution_clock::now();
@@ -337,7 +344,7 @@ namespace Examples
         m_expression.Compile(root);
         auto compileTime = std::chrono::high_resolution_clock::now();
         auto function = m_expression.GetEntryPoint();
-        auto result = function();
+        auto result = function(variables);
         auto endTime = std::chrono::high_resolution_clock::now();
 
         stat.parseNano_ = elapsedNano( startTime, parseTime );
@@ -446,7 +453,18 @@ namespace Examples
                     return m_expression.Call( function, parameter );
                 }
                 case Symbol::Kind::variable:
-                    // TODO
+                {
+                    m_minNbVariable = symbol->id + 1;
+                    // Ensure we have initialized the node with the pointer on the variable
+                    // based on array passed as parameter to the function + variable index.
+                    m_variablePointers.resize( m_minNbVariable );
+                    if (m_variablePointers[symbol->id] == nullptr )
+                    {
+                        auto &variableIndex = m_expression.Immediate( symbol->id );
+                        m_variablePointers[symbol->id] = &m_expression.Add( m_expression.GetP1(), variableIndex );
+                    }
+                    return m_expression.RemoveConstCast( m_expression.Deref(*m_variablePointers[symbol->id]) );
+                }
                 default:
                     throw std::logic_error( "Unsupported symbol kind" );
                 }
@@ -755,8 +773,12 @@ bool Test()
             Examples::PerfStat perfStat;
             try {
                 auto symbols = Examples::defaultSymbols();
+                symbols.declareVariable( "x", 0 );
+                symbols.declareVariable( "y", 1 );
+                symbols.declareVariable( "z", 2 );
                 Examples::Parser parser(m_input, allocator, code, symbols);
-                Real result = parser.Evaluate( perfStat );
+                Real variables[3] = {1, 20, 300};
+                Real result = parser.Evaluate( perfStat, variables, sizeof(variables)/sizeof(Real) );
 
                 output << result;
 
@@ -824,7 +846,7 @@ bool Test()
 
         // sqrt
         TestCase("sqrt(4)", 2.0),
-        TestCase("sqrt((3+4)*(2+3))", sqrtf(35)),
+        TestCase("sqrt((3+4)*(2+3))", sqrt(Real(35))),
 
         // ifNotZero
         TestCase( "ifNotZero(1, 2, 3)", 2.0 ),
@@ -848,15 +870,12 @@ bool Test()
         TestCase( "if(1 > 2, 3, 4)", 4.0 ),
         TestCase( "if(2 > 2, 3, 4)", 4.0 ),
 
-        // VS Flags (https://msdn.microsoft.com/en-us/library/kwydd1t7(v=vs.85).aspx)
-        // PL = SF
-        // OF = OV
-        // ZF = ZR
-        // CY = CF
-        // jg: PL = OV and ZR = 0
-        // 1 < 2: OV = 0 UP = 0 EI = 1 PL = 0 ZR = 0 AC = 0 PE = 0 CY = 1
-        // 5 < 2: OV = 0 UP = 0 EI = 1 PL = 0 ZR = 0 AC = 0 PE = 0 CY = 0 
-        // => only difference in on CY, the carry flag
+        // variables
+        TestCase( "x", 1.0 ),
+        TestCase( "y", 20.0 ),
+        TestCase( "z", 300.0 ),
+        TestCase( "(x+z)+y", 321.0 ),
+
     };
 
 
@@ -904,6 +923,9 @@ int main( int argc, const char *argv[] )
     FunctionBuffer code(codeAllocator, 8192);
     //code.EnableDiagnostics( std::cout ); // uncomment to see assembly generated for the function
     auto symbols = Examples::defaultSymbols();
+    symbols.declareVariable( "x", 0 );
+    symbols.declareVariable( "y", 1 );
+    symbols.declareVariable( "z", 2 );
     std::string prompt(">> ");
 
     std::istream *inputStream = &std::cin;
@@ -942,7 +964,8 @@ int main( int argc, const char *argv[] )
         {
             Examples::Parser parser(line, allocator, code, symbols);
             Examples::PerfStat perfStat;
-            Real result = parser.Evaluate( perfStat );
+            Real variables[ 3 ] = { 1, 20, 300 };
+            Real result = parser.Evaluate( perfStat, variables, sizeof( variables ) / sizeof( Real ) );
             std::cout << result << std::endl;
 #ifndef NATIVEJIT_WITH_AFL
             perfStat.print();
