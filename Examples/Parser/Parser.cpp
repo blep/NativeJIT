@@ -1,6 +1,7 @@
 #include <chrono>
 #include <iostream>
 #include <fstream>
+#include <unordered_map>
 #include <math.h>       // For value of e.
 #include <stdexcept>
 #include <string>
@@ -108,6 +109,51 @@ namespace Examples
 
 #endif
 
+    using VariableId = int;
+
+    struct Symbol
+    {
+        enum class Kind 
+        {
+            variable = 0,
+            constant,
+            function1
+        };
+        Kind kind;
+        int nbParameter;
+        union
+        {
+            VariableId id;
+            Real constant;
+            Real( *fn1 )( Real value );
+        };
+    };
+
+
+    class Symbols
+    {
+    public:
+        void declareVariable( const std::string &name, VariableId arrayIndex );
+        void bindConstant( const std::string &name, Real value );
+        void bindFunction( const std::string &name, Real (*fn)( Real value ) );
+
+        const Symbol *get( const std::string &name ) const;
+
+    private:
+        std::unordered_map<std::string, Symbol> m_symbolsByName;
+    };
+
+
+    Symbols defaultSymbols()
+    {
+        Symbols symbols;
+        symbols.bindConstant( "e", static_cast<Real>( exp( 1 ) ) );
+        symbols.bindConstant( "pi", static_cast<Real>( atan( 1 ) * 4 ) );
+        symbols.bindFunction( "sqrt", &sqrt );
+        return symbols;
+    }
+
+
     class Parser
     {
     public:
@@ -118,7 +164,8 @@ namespace Examples
         //
         Parser(std::string const & src,
                Allocator& allocator,
-               FunctionBuffer& code);
+               FunctionBuffer& code,
+               const Symbols &symbols );
 
         //
         // Compiles the expression, then invokes the resulting
@@ -219,15 +266,59 @@ namespace Examples
 
         // NativeJIT Function used to build and compile parsed expression.
         Function<Real> m_expression;
+
+        // constant, variable & function declarations
+        const Symbols &m_symbols;
     };
+
+
+    void Symbols::declareVariable( const std::string &name, VariableId arrayIndex )
+    {
+        if ( m_symbolsByName.count(name) > 0 )
+            throw std::invalid_argument( "A symbol named '" + name + "' was already declared." );
+        Symbol symbol;
+        symbol.kind = Symbol::Kind::variable;
+        symbol.id = arrayIndex;
+        m_symbolsByName[ name ] = symbol;
+    }
+
+    void Symbols::bindConstant( const std::string &name, Real value )
+    {
+        if (m_symbolsByName.count( name ) > 0)
+            throw std::invalid_argument( "A symbol named '" + name + "' was already declared." );
+        Symbol symbol;
+        symbol.kind = Symbol::Kind::constant;
+        symbol.constant = value;
+        m_symbolsByName[ name ] = symbol;
+    }
+
+    void Symbols::bindFunction( const std::string &name, Real( *fn )( Real value ) )
+    {
+        if (m_symbolsByName.count( name ) > 0)
+            throw std::invalid_argument( "A symbol named '" + name + "' was already declared." );
+        Symbol symbol;
+        symbol.kind = Symbol::Kind::function1;
+        symbol.fn1 = fn;
+        m_symbolsByName[ name ] = symbol;
+    }
+
+    const Symbol *Symbols::get( const std::string &name ) const
+    {
+        auto it = m_symbolsByName.find( name );
+        if ( it == m_symbolsByName.end() )
+            return nullptr;
+        return &(it->second);
+    }
 
 
     Parser::Parser(std::string const & src,
                    Allocator& allocator,
-                   FunctionBuffer& code)
+                   FunctionBuffer& code,
+                   const Symbols &symbols)
         : m_src(src),
           m_currentPosition(0),
-          m_expression(allocator, code)
+          m_expression(allocator, code),
+          m_symbols(symbols)
     {
     }
 
@@ -339,29 +430,29 @@ namespace Examples
         }
         else if (isalpha(next))
         {
-            std::string symbol = ParseSymbol();
-            if (symbol.compare("e") == 0)
+            std::string symbolName = ParseSymbol();
+            auto symbol = m_symbols.get( symbolName );
+            if ( symbol != nullptr )
             {
-                // 'e' denotes Euler's number.
-                const Real e = static_cast<Real>(exp(1));
-                return m_expression.Immediate(e);
+                // variable, constant or function
+                switch ( symbol->kind )
+                {
+                case Symbol::Kind::constant:
+                    return m_expression.Immediate( symbol->constant );
+                case Symbol::Kind::function1:
+                {
+                    auto& parameter = ParseSum();
+                    auto& function = m_expression.Immediate( symbol->fn1 );
+                    return m_expression.Call( function, parameter );
+                }
+                case Symbol::Kind::variable:
+                    // TODO
+                default:
+                    throw std::logic_error( "Unsupported symbol kind" );
+                }
+
             }
-            else if (symbol.compare("pi") == 0)
-            {
-                // 'pi' denotes the mathematical constant pi.
-                const Real pi = static_cast<Real>(atan(1) * 4);
-                return m_expression.Immediate(pi);
-            }
-            else if (symbol.compare( "sqrt" ) == 0)
-            {
-                Consume( '(' );
-                auto& parameter = ParseSum();
-                Consume( ')' );
-                Real (*sqrtFn)( Real value) = &sqrt;
-                auto & sqrtFunction = m_expression.Immediate( sqrtFn );
-                return m_expression.Call( sqrtFunction, parameter );
-            }
-            else if (symbol.compare( "ifNotZero" ) == 0)
+            else if (symbolName.compare( "ifNotZero" ) == 0)
             {
                 Consume( '(' );
                 auto& conditionValue = ParseSum();
@@ -372,7 +463,7 @@ namespace Examples
                 Consume( ')' );
                 return m_expression.IfNotZero( conditionValue, trueValue, falseValue );
             }
-            else if (symbol.compare( "if" ) == 0)
+            else if (symbolName.compare( "if" ) == 0)
             {
                 Consume( '(' );
                 auto &ifValue = ParseIf();
@@ -663,7 +754,8 @@ bool Test()
             output << "\"" << m_input << "\" ==> ";
             Examples::PerfStat perfStat;
             try {
-                Examples::Parser parser(m_input, allocator, code);
+                auto symbols = Examples::defaultSymbols();
+                Examples::Parser parser(m_input, allocator, code, symbols);
                 Real result = parser.Evaluate( perfStat );
 
                 output << result;
@@ -811,6 +903,7 @@ int main( int argc, const char *argv[] )
     Allocator allocator(8192);
     FunctionBuffer code(codeAllocator, 8192);
     //code.EnableDiagnostics( std::cout ); // uncomment to see assembly generated for the function
+    auto symbols = Examples::defaultSymbols();
     std::string prompt(">> ");
 
     std::istream *inputStream = &std::cin;
@@ -847,7 +940,7 @@ int main( int argc, const char *argv[] )
 
         try
         {
-            Examples::Parser parser(line, allocator, code);
+            Examples::Parser parser(line, allocator, code, symbols);
             Examples::PerfStat perfStat;
             Real result = parser.Evaluate( perfStat );
             std::cout << result << std::endl;
