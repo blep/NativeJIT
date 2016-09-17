@@ -191,21 +191,31 @@ namespace Examples
         };
 
     private:
+        enum class Precedence
+        {
+            none = 0,
+            additive,
+            multiplicative,
+            power
+        };
+
+        struct OperatorWithPrecedence
+        {
+            char m_operator;
+            Precedence m_precedence;
+            bool m_hasRightAssociativity;
+        };
+
         // Parses an expression of the form
         // EXPRESSION:
         //   SUM
         NativeJIT::Node<Real>& Parse();
 
-        // Parses expressions of form
-        // SUM:
-        //   PRODUCT ('+' PRODUCT)*
-        //   PRODUCT ('-' PRODUCT)*
-        NativeJIT::Node<Real>& ParseSum();
+        NativeJIT::Node<Real>& ParseExpression();
 
-        // Parses expressions of the form
-        // PRODUCT:
-        //   TERM ('*' TERM)*
-        NativeJIT::Node<Real>& ParseProduct();
+        NativeJIT::Node<Real>& ParseExpressionRHS( NativeJIT::Node<Real>& lhs, Precedence minPrecedence=Precedence::none );
+
+        OperatorWithPrecedence PeekOperator();
 
         // Parses expressions of the form
         // TERM:
@@ -357,8 +367,7 @@ namespace Examples
 
     NativeJIT::Node<Real>& Parser::Parse()
     {
-        auto& expression = ParseSum();
-
+        auto &expression = ParseExpression();
         SkipWhite();
         if (PeekChar() != '\0')
         {
@@ -368,48 +377,73 @@ namespace Examples
         return expression;
     }
 
-
-    NativeJIT::Node<Real>& Parser::ParseSum()
+    NativeJIT::Node<Real>& Parser::ParseExpression()
     {
-        auto& left = ParseProduct();
-
-        SkipWhite();
-        if (PeekChar() == '+')
-        {
-            GetChar();
-            auto& right = ParseProduct();
-
-            return m_expression.Add(left, right);
-        }
-        else if (PeekChar() == '-')
-        {
-            GetChar();
-            auto& right = ParseProduct();
-
-            return m_expression.Sub(left, right);
-        }
-        else
-        {
-            return left;
-        }
+        auto& lhs = ParseTerm();
+        return ParseExpressionRHS( lhs );
     }
 
-
-    NativeJIT::Node<Real>& Parser::ParseProduct()
+    NativeJIT::Node<Real>& Parser::ParseExpressionRHS( NativeJIT::Node<Real>& lhs, Precedence minPrecedence )
     {
-        auto& left = ParseTerm();
-
-        SkipWhite();
-        if (PeekChar() == '*')
+        NativeJIT::Node<Real>* currentLHS = &lhs;
+        for (;;)
         {
-            GetChar();
-            auto& right = ParseSum();
+            auto op = PeekOperator();
+            // if op priority is lower than the required one, stop left-associativity
+            // if previous operator was a '*' then it can only be followed by a '*' or another operator of higher precedence.
+            if ( !op.m_operator  ||  op.m_precedence < minPrecedence )
+                break;
+            GetChar(); // consume operator
+            auto rhs = &( ParseTerm() );
+            // Given:   LHS op1 RHS op2 ...
+            // Example: lhs  +  rhs * 2  <=> lhs + (rhs * 2)
+            //          lhs ^ rhs ^ 2 <=> lhs ^ (rhs ^2)
+            // If op2 as higher precedence than op1, we expand RHS op2 ... first, before creating the node for LHS op1.
+            // This also apply if op2 as right associatibty (power operator for example)
+            auto nextOp = PeekOperator();
+            if ( nextOp.m_precedence > op.m_precedence  ||  nextOp.m_hasRightAssociativity )
+                rhs = &( ParseExpressionRHS( *rhs, op.m_precedence ) );
 
-            return m_expression.Mul(left, right);
+            switch ( op.m_operator )
+            {
+            case '+':
+                currentLHS = &( m_expression.Add( *currentLHS, *rhs ) );
+                break;
+            case '-':
+                currentLHS = &( m_expression.Sub( *currentLHS, *rhs ) );
+                break;
+            case '*':
+                currentLHS = &( m_expression.Mul( *currentLHS, *rhs ) );
+                break;
+            case '^':
+            {
+                Real (*powFn)( Real v, Real expo) = &std::pow;
+                auto& function = m_expression.Immediate( powFn );
+                currentLHS = &( m_expression.Call( function, *currentLHS, *rhs ) );
+                break;
+            }
+            default:
+                throw std::logic_error( "Unsupported operator" );
+            }
         }
-        else
+        return *currentLHS;
+    }
+
+    Parser::OperatorWithPrecedence Parser::PeekOperator()
+    {
+        SkipWhite();
+        switch ( PeekChar() )
         {
-            return left;
+        case '+':
+            return OperatorWithPrecedence{ '+', Precedence::additive };
+        case '-':
+            return OperatorWithPrecedence{ '-', Precedence::additive };
+        case '*':
+            return OperatorWithPrecedence{ '*', Precedence::multiplicative };
+        case '^':
+            return OperatorWithPrecedence{ '^', Precedence::power, true };
+        default:
+            return OperatorWithPrecedence{ '\0', Precedence::none };
         }
     }
 
@@ -423,7 +457,7 @@ namespace Examples
         {
             GetChar();
 
-            auto& result = ParseSum();
+            auto& result = ParseExpression();
 
             SkipWhite();
             Consume(')');
@@ -448,7 +482,7 @@ namespace Examples
                     return m_expression.Immediate( symbol->constant );
                 case Symbol::Kind::function1:
                 {
-                    auto& parameter = ParseSum();
+                    auto& parameter = ParseExpression();
                     auto& function = m_expression.Immediate( symbol->fn1 );
                     return m_expression.Call( function, parameter );
                 }
@@ -473,11 +507,11 @@ namespace Examples
             else if (symbolName.compare( "ifNotZero" ) == 0)
             {
                 Consume( '(' );
-                auto& conditionValue = ParseSum();
+                auto& conditionValue = ParseExpression();
                 Consume( ',' );
-                auto& trueValue = ParseSum();
+                auto& trueValue = ParseExpression();
                 Consume( ',' );
-                auto& falseValue = ParseSum();
+                auto& falseValue = ParseExpression();
                 Consume( ')' );
                 return m_expression.IfNotZero( conditionValue, trueValue, falseValue );
             }
@@ -507,14 +541,14 @@ namespace Examples
     NativeJIT::Node<Real> &Parser::ParseIfValues( NativeJIT::Node<Real> &lhs )
     {
         SkipWhite();
-        auto& rhs = ParseSum();
+        auto& rhs = ParseExpression();
         SkipWhite();
         auto &cmp = m_expression.Compare<JCC>( lhs, rhs );
         Consume(',');
-        auto& ifTrue = ParseSum();
+        auto& ifTrue = ParseExpression();
         SkipWhite();
         Consume( ',' );
-        auto& ifFalse = ParseSum();
+        auto& ifFalse = ParseExpression();
         SkipWhite();
         return m_expression.Conditional( cmp, ifTrue, ifFalse );
     }
@@ -522,7 +556,7 @@ namespace Examples
 
     NativeJIT::Node<Real>& Parser::ParseIf()
     {
-        auto& lhs = ParseSum();
+        auto& lhs = ParseExpression();
         SkipWhite();
 
         // NativeJIT floating point comparison is done using the comiss x86 instruction
@@ -770,7 +804,7 @@ bool Test()
             bool succeeded = false;
 
             output << "\"" << m_input << "\" ==> ";
-            Examples::PerfStat perfStat;
+            Examples::PerfStat perfStat = {};
             try {
                 auto symbols = Examples::defaultSymbols();
                 symbols.declareVariable( "x", 0 );
@@ -791,7 +825,13 @@ bool Test()
                 {
                     output << " FAILED: expected " << m_output;
                 }
-            } catch (...) {
+            }
+            catch (const std::exception &e)
+            {
+                output << "FAILED: exception: " << e.what();;
+            }
+            catch (...)
+            {
                 output << "FAILED: exception.";
             }
 
@@ -826,6 +866,7 @@ bool Test()
 
         // Addition
         TestCase("1+2", 3.0),
+        TestCase("1+2+4", 7.0),
         TestCase("3+e", 3.0 + static_cast<Real>(exp(1))),
 
         // Subtraction
@@ -833,6 +874,11 @@ bool Test()
 
         // Multiplication
         TestCase("2*3", 6.0),
+        TestCase("2*3*4", 24.0),
+
+        // Power
+        TestCase( "2^3", 8.0 ),
+        TestCase( "2^2^3", 256.0 ), // test right associativity of power = 2^(2^3)
 
         // Parenthesized expressions
         TestCase("(3+4)", 7.0),
@@ -840,6 +886,10 @@ bool Test()
 
         // Combinations
         TestCase("1+-2", -1.0),     // Addition combined with unary negation.
+        TestCase("1+-2*3", -5.0),
+        TestCase("-2*3+1*5", -1.0),
+        TestCase("1+2*3^2", 19.0),
+        TestCase("1+2*3^2^3*5+7*4^2-2^3*4", 65691),
 
         // White space
         TestCase("\t 1  + ( 2 * 10 )    ", 21.0),
@@ -921,7 +971,7 @@ int main( int argc, const char *argv[] )
     ExecutionBuffer codeAllocator(8192);
     Allocator allocator(8192);
     FunctionBuffer code(codeAllocator, 8192);
-    //code.EnableDiagnostics( std::cout ); // uncomment to see assembly generated for the function
+//    code.EnableDiagnostics( std::cout ); // uncomment to see assembly generated for the function
     auto symbols = Examples::defaultSymbols();
     symbols.declareVariable( "x", 0 );
     symbols.declareVariable( "y", 1 );
